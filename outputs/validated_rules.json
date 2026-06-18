@@ -1,0 +1,23 @@
+{
+    "walkway_violation": {
+        "observable_indicator": "person outside green walkway boundaries",
+        "policy_reference": "3.3.2",
+        "severity_hint": "HIGH"
+    },
+    "unauthorized_intervention": {
+        "observable_indicator": "person interacting with equipment without green vest",
+        "policy_reference": "4.3.2",
+        "severity_hint": "CRITICAL"
+    },
+    "opened_panel_cover": {
+        "observable_indicator": "electrical panel cover left open",
+        "policy_reference": "5.2.2",
+        "severity_hint": "MEDIUM"
+    },
+    "forklift_overload": {
+        "observable_indicator": "forklift carrying 3 or more blocks",
+        "policy_reference": "6.3.2",
+        "severity_hint": "CRITICAL",
+        "threshold": 3
+    }
+}

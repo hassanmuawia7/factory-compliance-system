@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+env/
+
+# AI Models
+*.pt
+yolov8n.pt
+
+# Output files (Optional, but good if you don't want to push generated logs)
+outputs/policy_text.txt
+outputs/rules.json
+outputs/validated_rules.json
