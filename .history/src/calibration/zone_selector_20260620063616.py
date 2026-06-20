@@ -245,61 +245,6 @@ while True:
         y += 28
 
     # ==================================
-    # CONFIRMATION POPUP OVERLAY
-    # ==================================
-
-    if awaiting_machine_confirmation:
-
-        overlay = display.copy()
-
-        cv2.rectangle(
-            overlay,
-            (350, 250),
-            (1000, 500),
-            (0, 0, 150),
-            -1
-        )
-
-        cv2.addWeighted(
-            overlay,
-            0.7,
-            display,
-            0.3,
-            0,
-            display
-        )
-
-        cv2.putText(
-            display,
-            "RECALIBRATE MACHINES?",
-            (420, 320),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 255, 255),
-            3
-        )
-
-        cv2.putText(
-            display,
-            "Y = Clear old machine zones",
-            (420, 380),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (255, 255, 255),
-            2
-        )
-
-        cv2.putText(
-            display,
-            "N = Cancel",
-            (420, 430),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (255, 255, 255),
-            2
-        )
-
-    # ==================================
     # DISPLAY
     # ==================================
 
@@ -309,39 +254,6 @@ while True:
     )
 
     key = cv2.waitKey(1) & 0xFF
-
-    # ==================================
-    # HANDLE CONFIRMATION STATE
-    # ==================================
-
-    if awaiting_machine_confirmation:
-
-        if key == ord("y"):
-
-            mode = "machine"
-
-            zones_data["machinery_zones"] = {}
-
-            points = []
-
-            machine_counter = 1
-
-            awaiting_machine_confirmation = False
-
-            print(
-                "\n➡ MACHINE RECALIBRATION "
-                "(old machine zones cleared)"
-            )
-
-        elif key == ord("n"):
-
-            awaiting_machine_confirmation = False
-
-            print(
-                "\n❌ Machine recalibration cancelled"
-            )
-
-        continue  # Skip other key checks while waiting
 
     # ==================================
     # WALKWAY MODE
@@ -361,11 +273,11 @@ while True:
 
     elif key == ord("2"):
 
-        awaiting_machine_confirmation = True
+    awaiting_machine_confirmation = True
 
-        print("\n⚠ Recalibrate Machines?")
-        print("Y = Yes (clear old machine zones)")
-        print("N = No (cancel)")
+    print("\n⚠ Recalibrate Machines?")
+    print("Y = Yes (clear old machine zones)")
+    print("N = No (cancel)")
 
     # ==================================
     # SAVE
