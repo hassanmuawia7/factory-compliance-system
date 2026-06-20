@@ -1,348 +1,455 @@
 ﻿# Factory Compliance Monitoring System
 
-**A Professional Industrial AI Monitoring Platform for Workplace Safety & Compliance**
+AI-powered industrial safety platform for workplace compliance monitoring. The system parses facility policy documents, detects violations in video feeds using YOLOv8 computer vision, classifies severity, routes escalation actions, persists events to SQLite, and exposes results through a Streamlit dashboard and exportable reports.
 
-Version: 2.0.0  |  Status: Production-Ready  |  License: Proprietary
-
-## 🎯 Project Overview
-
-The Factory Compliance Monitoring System is an enterprise-grade AI-powered solution designed to detect and monitor workplace safety violations in industrial environments. Using YOLOv8-based computer vision, the system automatically identifies compliance breaches, logs events to a SQLite database, and provides a professional Streamlit dashboard for real-time monitoring and reporting.
-
-This project demonstrates proficiency in:
-- **Computer Vision**: YOLOv8 person detection, custom zone detection
-- **Backend Engineering**: SQLAlchemy ORM, database services, event factories
-- **Full-Stack Development**: Python, Streamlit, Plotly, SQLite
-- **Software Architecture**: Service layers, design patterns, clean code
-- **DevOps**: Environment management, deployment-ready structure
+**Version:** 2.0.0  
+**Status:** Submission-ready
 
 ---
 
-## 🏢 Enterprise Features
+## 1. Project Overview
 
-### AI-Powered Detection
-- ✅ Real-time YOLOv8 person detection
-- ✅ Customizable danger zone definitions (polygon-based)
-- ✅ Multi-behavior violation detection
-- ✅ Automatic event generation and logging
+The Factory Compliance Monitoring System automates monitoring of unsafe behaviors on a factory production floor. It was built as an AI internship take-home assignment demonstrating end-to-end system design: from policy document ingestion through real-time video analysis to audit logging and operational dashboards.
 
-### Compliance Violations Detected
-1. **Walkway Violation** (HIGH severity)
-   - Person detected outside designated walkway zone
-   - Real-time alerting
+The system currently implements **three of four** policy domains defined in the facility compliance manual:
 
-2. **Unauthorized Intervention** (CRITICAL severity)
-   - Person without safety vest near machinery
-   - Requires immediate action
+| Policy Domain | Status | Detector |
+|---|---|---|
+| Pedestrian Movement | Implemented | Walkway Violation |
+| Equipment Intervention | Implemented | Unauthorized Intervention |
+| Forklift Load Management | Implemented | Forklift Overload |
+| Electrical Panel Management | Not implemented | — |
 
-### Professional Dashboard
-- **Executive KPI Cards**: Total violations, severity breakdown, compliance score
-- **Alert Center**: Latest critical/high violations with detailed information
-- **Analytics**: Severity distribution, behavior trends, time-series analysis
-- **Advanced Filtering**: By severity, behavior type, date range
-- **Audit Log**: Comprehensive sortable table with all event details
-- **System Health**: Real-time status of database, engines, and dashboards
-- **Export Capabilities**: CSV, JSON, and summary reports
-
-### Database Layer
-- SQLAlchemy ORM for type-safe database operations
-- Automated event logging
-- Comprehensive CRUD utilities
-- Statistical analysis functions
+Core technologies: **Python**, **YOLOv8 (Ultralytics)**, **OpenCV**, **SQLAlchemy**, **SQLite**, **Streamlit**, **Plotly**, **PyMuPDF**, **OpenAI API** (rule extraction).
 
 ---
 
-## 🏗️ Architecture
+## 2. Assignment Objective
 
-`
-Factory Compliance System
-│
-├── 🎥 DETECTION LAYER (Computer Vision)
-│   ├── walkway_detector.py     - Zone violation detection
-│   ├── unauthorized_intervention_detector.py - Safety equipment detection
-│   └── YOLO Integration       - Person detection engine
-│
-├── 📊 DATABASE LAYER (Event Storage)
-│   ├── models.py              - SQLAlchemy ORM models
-│   ├── db_manager.py          - Database initialization
-│   └── database_service.py    - Service layer CRUD operations
-│
-├── ⚡ EVENT LAYER (Event Processing)
-│   ├── event_factory.py       - Standardized event creation
-│   ├── severity_classification.py - Severity determination
-│   └── validation.py          - Event validation
-│
-├── 📈 REPORTING LAYER (Analytics & Exports)
-│   ├── report_generator.py    - CSV/JSON/Summary reports
-│   └── statistics.py          - Compliance analytics
-│
-├── 🎨 DASHBOARD LAYER (User Interface)
-│   ├── app.py                 - Enterprise Streamlit dashboard
-│   ├── components.py          - Reusable UI components
-│   └── styling.py             - Professional CSS theming
-│
-└── 🔧 UTILITIES
-    ├── parsers/               - PDF/Rule extraction
-    ├── validators/            - Compliance validators
-    └── calibration/           - Zone calibration tools
-`
+Build an automated compliance monitoring pipeline that:
+
+1. Extracts enforceable safety rules from a provided policy PDF.
+2. Detects unsafe behaviors in factory video footage.
+3. Assigns severity levels and escalation actions to each violation.
+4. Stores structured compliance events in a database.
+5. Presents violations through a monitoring dashboard and exportable reports.
+
+Each violation event must include: `event_id`, `timestamp`, `clip_id`, `zone`, `behavior_class`, `policy_rule_ref`, `event_description`, `severity`, and `escalation_action`.
 
 ---
 
-## 🚀 Installation
+## 3. System Architecture
+
+```
+Policy PDF (data/policy/)
+        │
+        ▼
+  PDF Parser ──► policy_text.txt
+        │
+        ▼
+  Rule Extractor (OpenAI) ──► rules.json
+        │
+        ▼
+  Rule Validator ──► validated_rules.json
+        │
+        ▼
+  ConfigManager (zones.json + validated_rules.json)
+        │
+        ▼
+  Main Pipeline (src/main.py)
+        │
+        ├── YOLOv8 Inference (person + truck classes)
+        │
+        ├── DetectorManager
+        │     ├── WalkwayDetector
+        │     ├── UnauthorizedInterventionDetector
+        │     └── ForkliftOverloadDetector
+        │
+        ├── EventFactory (severity + policy mapping)
+        │
+        ├── EventBus (CRITICAL / VIOLATION events)
+        │
+        └── DatabaseService ──► SQLite (outputs/compliance_logs.db)
+                │
+                ├── Streamlit Dashboard
+                └── Report Generator (CSV / JSON / Summary)
+```
+
+**Design principles:** single YOLO instance per pipeline run, shared configuration via `ConfigManager`, detectors inherit from `BaseDetector` and return events without writing to the database directly, and the main orchestrator handles persistence and console alerting.
+
+---
+
+## 4. Policy Parsing Pipeline
+
+The policy parsing pipeline converts the facility PDF into structured, validated rules consumed by all detectors.
+
+| Step | Script | Input | Output |
+|---|---|---|---|
+| 1. PDF extraction | `python src/parser/pdf_parser.py` | `data/policy/Compliance_Policy_Manual.pdf` | `outputs/policy_text.txt` |
+| 2. Rule extraction | `python src/parser/rule_extractor.py` | `outputs/policy_text.txt` | `outputs/rules.json` |
+| 3. Rule validation | `python src/parser/validator.py` | `outputs/rules.json` | `outputs/validated_rules.json` |
+
+**Rule extraction** uses the OpenAI API (`gpt-4o-mini`) with JSON response format to extract four unsafe behaviors. Each rule contains:
+
+- `observable_indicator` — what the detection system should look for
+- `policy_reference` — section reference (e.g. `6.3.2`)
+- `severity_hint` — expected severity level
+- `threshold` — numeric threshold where applicable (e.g. forklift block count)
+
+**Validation** checks required fields and severity values before saving `validated_rules.json`. Detectors read rules at startup through `ConfigManager`.
+
+---
+
+## 5. Detection Modules
+
+All detectors inherit from `BaseDetector`, receive YOLO detections as input (no per-detector model loading), and return standardized event dictionaries.
+
+### Walkway Violation Detection
+
+**File:** `src/detection/walkway_detector_refactored.py`  
+**Behavior class:** `walkway_violation`  
+**Severity:** HIGH  
+**Policy reference:** Section 3.3.2 (from validated rules)
+
+Detects persons (YOLO class 0) whose foot position falls outside the polygon defined in `outputs/zones.json` (`walkway_zone`). Uses a 5-second cooldown to prevent duplicate events for the same ongoing violation.
+
+### Unauthorized Intervention Detection
+
+**File:** `src/detection/unauthorized_intervention_detector_refactored.py`  
+**Behavior class:** `unauthorized_intervention`  
+**Severity:** CRITICAL  
+**Policy reference:** Section 4.3.2 (from validated rules)
+
+Detects persons inside machinery zones (from `zones.json` → `machinery_zones`) who are not wearing a green safety vest. Vest detection uses HSV color analysis on an upper-torso ROI within the person bounding box.
+
+### Forklift Load Management Detection
+
+**File:** `src/detection/forklift_detector_refactored.py`  
+**Behavior class:** `forklift_overload`  
+**Severity:** CRITICAL  
+**Policy reference:** Section 6.3.2 (from validated rules)
+
+Detects forklifts using YOLO class 7 (`truck`) with confidence and area filters. A motion-history check suppresses false positives on stationary machinery.
+
+**Load estimation** uses vertical band counting on orange load pixels within the fork ROI:
+
+1. Crop the upper portion of the truck bounding box.
+2. Apply HSV masking for facility load color.
+3. Compute row projection and count distinct vertical bands (stack layers).
+4. Stabilize the count using a rolling median over recent frames.
+
+**Overload decision:** when the stabilized load count meets or exceeds the policy threshold (default: **3 blocks**, read from `validated_rules.json`) for 3 consecutive frames, a violation event is generated.
+
+**Note:** Forklift footage is present in `data/videos/7_tr3.mp4`. The visible load in provided footage appears compliant (estimated 1–2 units). Overload events are therefore not expected during normal demo runs on that clip.
+
+---
+
+## 6. Severity Classification
+
+Severity is assigned centrally in `src/severity/event_factory.py` via `BEHAVIOR_SEVERITY_MAP`:
+
+| Behavior Class | Severity |
+|---|---|
+| `walkway_violation` | HIGH |
+| `unauthorized_intervention` | CRITICAL |
+| `forklift_overload` | CRITICAL |
+
+Policy references are mapped in `BEHAVIOR_POLICY_MAP`. Detectors may override the policy reference with the parsed value from `validated_rules.json` (e.g. forklift uses `6.3.2`).
+
+Compliance score impact (dashboard): `100 − (Critical×5 + High×2 + Medium×0.5)`.
+
+---
+
+## 7. Escalation Pipeline
+
+Escalation actions are derived automatically from severity in `EventFactory._derive_escalation_action()`:
+
+| Severity | Escalation Action |
+|---|---|
+| CRITICAL, HIGH | Real-time alert triggered + DB log |
+| MEDIUM, LOW | Logged to DB only |
+
+When a violation is persisted:
+
+1. `EventFactory.validate_event()` checks all required fields.
+2. `DatabaseService.create_violation()` writes to SQLite.
+3. `EventBus` publishes the event (`CRITICAL_VIOLATION` for CRITICAL severity).
+4. Console output logs the event ID and severity.
+
+---
+
+## 8. Database Schema
+
+**Engine:** SQLite  
+**File:** `outputs/compliance_logs.db`  
+**ORM model:** `ViolationRecord` in `src/database/models.py`  
+**Table:** `violations`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER (PK) | Auto-increment row ID |
+| `event_id` | VARCHAR (unique) | Event identifier (e.g. `EVT-20260620194524…`) |
+| `timestamp` | VARCHAR | ISO 8601 timestamp |
+| `clip_id` | VARCHAR | Source video filename |
+| `zone` | VARCHAR | Detection zone (e.g. Walkway, Machine-Zone, Forklift-Zone) |
+| `behavior_class` | VARCHAR | Violation type |
+| `policy_rule_ref` | VARCHAR | Policy section reference |
+| `event_description` | VARCHAR | Human-readable description |
+| `severity` | VARCHAR | CRITICAL / HIGH / MEDIUM / LOW |
+| `escalation_action` | VARCHAR | Action taken |
+
+Initialize the database:
+
+```powershell
+python src/database/db_manager.py
+```
+
+---
+
+## 9. Dashboard Features
+
+**Launch:** `streamlit run src/dashboard/app.py` → http://localhost:8501
+
+The dashboard reads violation records from SQLite via `DatabaseService` and renders:
+
+### Live Feed Monitor
+
+Displays `outputs/latest_frame.jpg`, written by the main pipeline during video processing. Shows pipeline status (LIVE / STALE / OFFLINE) based on frame age.
+
+### Alert Timeline Stream
+
+Chronological stream of recent violations with severity color coding, timestamps, behavior class, and zone.
+
+### Historical Log
+
+**Violation Audit Log** — sortable table of all recorded events with timestamp, event ID, clip ID, zone, severity, behavior class, description, policy reference, and escalation action. Supports filtering by severity, behavior type, and date range, plus event search.
+
+### Additional Sections
+
+- **KPI Cards** — total violations, severity breakdown, compliance score
+- **Alert Center** — latest critical/high violations
+- **Analytics Dashboard** — severity donut chart, behavior bar chart, time-series trend
+- **System Health** — database and pipeline status indicators
+- **Export & Reporting** — download CSV/JSON and generate summary reports from the UI
+
+---
+
+## 10. Reports
+
+**Generate reports:**
+
+```powershell
+python src/reports/report_generator.py
+```
+
+This produces timestamped files in `outputs/reports/`:
+
+| Format | Description |
+|---|---|
+| CSV | Full violation audit log; `compliance_report_YYYYMMDD_HHMMSS.csv` |
+| JSON | Structured event export; `compliance_report_YYYYMMDD_HHMMSS.json` |
+| Summary | Text compliance summary; `compliance_summary_YYYYMMDD_HHMMSS.txt` |
+| Filtered export | JSON export filtered by severity (CRITICAL/HIGH) |
+
+Reports are generated from the SQLite database and reflect all persisted violation events.
+
+---
+
+## 11. Installation
 
 ### Prerequisites
-- Python 3.8+
-- Windows/Linux/macOS
-- 8GB+ RAM (for YOLO)
-- OpenCV compatible camera (optional, for video input)
 
-### Setup
+- Python 3.8+ (tested with Python 3.13)
+- Windows / Linux / macOS
+- 8 GB+ RAM recommended (YOLO inference)
+- OpenAI API key (for rule extraction only; pre-generated rules are included in `outputs/`)
 
-1. **Clone Repository**
-   `ash
-   git clone https://github.com/yourrepo/factory-compliance-system.git
-   cd factory-compliance-system
-   `
+### Clone and install dependencies
 
-2. **Create Virtual Environment**
-   `ash
-   python -m venv venv_fact
-   source venv_fact/bin/activate  # On Windows: venv_fact\Scripts\activate
-   `
+```powershell
+git clone <repository-url>
+cd factory-compliance-system
+python -m venv venv_fact
+.\venv_fact\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-3. **Install Dependencies**
-   `ash
-   pip install -r requirements.txt
-   `
+YOLOv8 Nano weights (`yolov8n.pt`) are downloaded automatically on first run.
 
-4. **Initialize Database**
-   `ash
+---
+
+## 12. Setup
+
+1. **Activate the virtual environment** (required for every session):
+
+   ```powershell
+   .\venv_fact\Scripts\Activate.ps1
+   python -c "import sys; print(sys.executable)"
+   ```
+
+   Verify the path points to `venv_fact`.
+
+2. **Initialize the database:**
+
+   ```powershell
    python src/database/db_manager.py
-   `
+   ```
+
+3. **Verify configuration files exist in `outputs/`:**
+
+   - `zones.json` — calibrated walkway and machinery zones
+   - `validated_rules.json` — validated policy rules
+
+4. **(Optional) Re-run policy parsing** if the policy PDF changes:
+
+   ```powershell
+   python src/parser/pdf_parser.py
+   python src/parser/rule_extractor.py
+   python src/parser/validator.py
+   ```
+
+   Rule extraction requires `OPENAI_API_KEY` in a `.env` file.
+
+5. **(Optional) Recalibrate zones** using a reference frame:
+
+   ```powershell
+   python src/calibration/zone_selector.py
+   ```
 
 ---
 
-## 📋 Usage
+## 13. Run Commands
 
-### Run Detection Engine
-`ash
-# Walkway violation detection
-python src/detection/walkway_detector.py
+### Main detection pipeline
 
-# Unauthorized intervention detection (coming soon)
-python src/detection/unauthorized_intervention_detector.py
-`
+```powershell
+python src/main.py
+```
 
-### Launch Dashboard
-`ash
+Default video: `data/videos/test.mp4`. Specify a clip:
+
+```powershell
+python src/main.py data/videos/7_tr3.mp4
+```
+
+Press **Q** to quit, **P** to pause. Violations are logged to the database and the latest annotated frame is saved to `outputs/latest_frame.jpg`.
+
+### Dashboard
+
+```powershell
 streamlit run src/dashboard/app.py
-`
+```
 
-The dashboard will open at http://localhost:8501
+### Reports
 
-### Generate Reports
-`ash
+```powershell
 python src/reports/report_generator.py
-`
+```
 
-This generates:
-- CSV audit logs
-- JSON event exports
-- Comprehensive summary reports
+### Zone calibration
 
----
+```powershell
+python src/calibration/zone_selector.py
+```
 
-## 📊 Data Schema
+Interactive tool for defining walkway and machinery zone polygons. Saves to `outputs/zones.json`.
 
-### Violations Table (SQLite)
-`sql
-violations (
-  id INTEGER PRIMARY KEY,
-  event_id VARCHAR UNIQUE,
-  timestamp VARCHAR,
-  behavior_class VARCHAR,
-  policy_rule_ref VARCHAR,
-  severity VARCHAR,
-  description VARCHAR,
-  escalation_action VARCHAR
-)
-`
+### Forklift overload path testing (validation only)
 
-### Event Structure
-`json
-{
-  "event_id": "EVT-20240618120530",
-  "timestamp": "2024-06-18T12:05:30.123456",
-  "behavior_class": "walkway_violation",
-  "policy_rule_ref": "POLICY_WALKWAY_001",
-  "severity": "HIGH",
-  "description": "Person detected in restricted walkway zone",
-  "escalation_action": "Real-time alert triggered + DB log"
-}
-`
+The overload decision logic can be tested without modifying video files:
+
+```powershell
+# Unit tests for overload decision logic
+python src/detection/forklift_detector_refactored.py
+
+# End-to-end overload simulation (disabled by default in normal runs)
+$env:FORKLIFT_SIMULATE_LOAD = "3"
+python src/main.py data/videos/7_tr3.mp4
+```
+
+`FORKLIFT_SIMULATE_LOAD` is **disabled by default** and only activates when explicitly set. Do not use during normal demos.
 
 ---
 
-## 🎨 Dashboard Sections
+## 14. Project Structure
 
-### 1. Executive Header
-- System name and status
-- Live monitoring indicator
-- Current timestamp
-
-### 2. KPI Cards (6 metrics)
-- Total Violations
-- Critical Count
-- High Count
-- Medium Count
-- Low Count
-- Compliance Score (%)
-
-### 3. Alert Center
-- Latest 8 critical/high violations
-- Color-coded severity badges
-- Event IDs and timestamps
-- Policy references
-
-### 4. Analytics
-- **Donut Chart**: Severity distribution
-- **Bar Chart**: Violations by behavior type
-- **Line Chart**: Violation trends over time
-
-### 5. Advanced Filters
-- Severity level filter
-- Behavior type filter
-- Date range picker
-
-### 6. Audit Log Table
-- All violations with full details
-- Timestamp, Event ID, Severity, Behavior
-- Description, Policy, Escalation Action
-
-### 7. System Health
-- Database status
-- YOLO Engine status
-- Rules Engine status
-- Dashboard status
-
-### 8. Export & Reporting
-- Download CSV report
-- Download JSON export
-- Generate compliance summary
-
-### 9. Professional Footer
-- Version number
-- Technology stack
-- Last refresh timestamp
-
----
-
-## 🔐 Security & Compliance
-
-- ✅ Event-level audit logging
-- ✅ Escalation routing based on severity
-- ✅ Compliance score calculation
-- ✅ Policy reference tracking
-- ✅ Timestamped events (ISO 8601)
-- ✅ Access monitoring (logged)
-
----
-
-## 📈 Performance
-
-- **Detection Speed**: ~25 FPS (YOLOv8 Nano)
-- **Database**: SQLite3 (lightweight, sufficient for enterprise)
-- **Dashboard Latency**: < 500ms
-- **Concurrent Users**: Streamlit supports multi-user streaming
-
----
-
-## 🛠️ Development
-
-### Project Structure
-`
+```
 factory-compliance-system/
-├── src/
-│   ├── detection/          - Computer vision detection modules
-│   ├── database/           - ORM models and database layer
-│   ├── dashboard/          - Streamlit UI application
-│   ├── parser/             - PDF policy parsing
-│   ├── reports/            - Report generation
-│   ├── severity/           - Event factory and classification
-│   ├── calibration/        - Zone calibration tools
-│   └── escalation/         - Alert routing (future)
 ├── data/
-│   ├── policy/             - Policy PDFs
-│   └── videos/             - Test videos
+│   ├── policy/
+│   │   └── Compliance_Policy_Manual.pdf
+│   └── videos/
+│       ├── test.mp4              # Default demo clip
+│       ├── 7_tr3.mp4             # Forklift activity clip
+│       └── ...                   # Additional test footage
 ├── outputs/
-│   ├── compliance_logs.db  - SQLite database
-│   ├── zones.json          - Calibrated danger zones
-│   ├── rules.json          - Extracted compliance rules
-│   └── reports/            - Generated reports
-├── requirements.txt        - Python dependencies
-├── README.md               - This file
-└── .gitignore             - Git ignore rules
-`
-
-### Code Quality
-- Type hints throughout
-- Comprehensive docstrings
-- Service layer architecture
-- Factory pattern for events
-- Clean separation of concerns
-
----
-
-## 🚀 Future Enhancements
-
-1. **Multi-Camera Support**: Distributed detection across cameras
-2. **Real-time Alerts**: Email/SMS/Slack notifications
-3. **Machine Learning**: Predictive violation forecasting
-4. **Advanced Analytics**: Heatmaps, anomaly detection
-5. **Webhook Integration**: Integrate with incident management systems
-6. **Cloud Deployment**: Azure/AWS cloud-ready architecture
-7. **Mobile Dashboard**: React Native mobile app
-8. **Custom Models**: Fine-tune YOLO on custom datasets
-
----
-
-## 📞 Support & Contribution
-
-For issues, feature requests, or contributions:
-1. Submit an issue through GitHub
-2. Follow the existing code style
-3. Include tests for new features
-4. Update documentation
-
----
-
-## 📄 License
-
-Proprietary. All rights reserved.
+│   ├── compliance_logs.db        # SQLite event database
+│   ├── zones.json              # Calibrated detection zones
+│   ├── validated_rules.json    # Validated policy rules
+│   ├── policy_text.txt         # Extracted policy text
+│   ├── rules.json              # Raw extracted rules
+│   ├── latest_frame.jpg        # Latest pipeline frame (dashboard feed)
+│   └── reports/                  # Generated report exports
+├── src/
+│   ├── main.py                   # Main pipeline entry point
+│   ├── calibration/
+│   │   └── zone_selector.py      # Zone calibration tool
+│   ├── core/
+│   │   ├── config_manager.py     # Configuration loader
+│   │   ├── detector_manager.py   # Detector coordination
+│   │   ├── event_bus.py          # Event pub/sub
+│   │   └── system_stats.py       # Runtime statistics
+│   ├── dashboard/
+│   │   └── app.py                # Streamlit dashboard
+│   ├── database/
+│   │   ├── models.py             # SQLAlchemy ORM models
+│   │   ├── db_manager.py         # Database initialization
+│   │   └── database_service.py   # CRUD service layer
+│   ├── detection/
+│   │   ├── base_detector.py
+│   │   ├── walkway_detector_refactored.py
+│   │   ├── unauthorized_intervention_detector_refactored.py
+│   │   └── forklift_detector_refactored.py
+│   ├── parser/
+│   │   ├── pdf_parser.py
+│   │   ├── rule_extractor.py
+│   │   └── validator.py
+│   ├── reports/
+│   │   └── report_generator.py
+│   └── severity/
+│       └── event_factory.py      # Event creation + severity mapping
+├── requirements.txt
+└── README.md
+```
 
 ---
 
-## 👨‍💼 Project Lead
+## 15. Known Limitations
 
-**[Your Name]**
-- 📧 Email: your.email@example.com
-- 🔗 LinkedIn: linkedin.com/in/yourprofile
-- 🐙 GitHub: github.com/yourprofile
+**Electrical Panel Management is intentionally not implemented.** The policy manual defines this domain (Section 5), but no electrical panel footage or calibrated zones are available in the provided dataset. The rule is extracted and validated in `validated_rules.json` (`opened_panel_cover`) but has no active detector.
 
----
+**Forklift overload logic is fully implemented** but the provided footage (`7_tr3.mp4`) shows a compliant load (estimated 1–2 stack units). Overload violation events are therefore not expected during normal demo runs. Use `FORKLIFT_SIMULATE_LOAD=3` to validate the overload event path end-to-end.
 
-## 🏆 Key Achievements
+**Forklift detection uses YOLO COCO class `truck`** as a forklift proxy. This works on moving forklifts but can produce false positives on large stationary machinery if motion filtering is insufficient. Motion-history filtering is applied to reduce this.
 
-✅ Enterprise-grade dashboard with Plotly visualizations  
-✅ Production-ready SQLAlchemy ORM implementation  
-✅ Modular, scalable architecture with service layers  
-✅ Real-time YOLOv8 computer vision integration  
-✅ Comprehensive audit logging and compliance tracking  
-✅ Professional reporting system (CSV, JSON, Summary)  
-✅ Clean code with type hints and documentation  
+**Load estimation is heuristic-based** (HSV color masking + vertical band counting). It does not use custom-trained models and may not generalize to all load types or lighting conditions.
+
+**Rule extraction requires an OpenAI API key.** Pre-generated `validated_rules.json` is included so the detection pipeline runs without re-extraction.
+
+**Single-camera processing.** The main pipeline processes one video source at a time.
 
 ---
 
-**Last Updated**: June 18, 2024  
-**Version**: 2.0.0  
-**Status**: Production Ready ✅
+## 16. Future Improvements
+
+Realistic extensions that build on the current architecture:
+
+- **Electrical Panel Monitoring** — detector for open panel covers using zone-based visual inspection, once suitable footage and calibration data are available.
+- **Email Alerts** — outbound notifications on CRITICAL/HIGH events via SMTP or webhook, triggered from the existing `EventBus`.
+- **Multi-Camera Support** — parallel or round-robin processing of multiple RTSP/file sources through the existing `DetectorManager`.
+- **Improved Forklift Load Estimation** — fine-tuned object detection or depth-aware counting to replace the current HSV band-counting heuristic.
+
+---
+
+**Last Updated:** June 2026  
+**Version:** 2.0.0

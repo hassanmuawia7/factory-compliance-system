@@ -25,8 +25,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import cv2
 import argparse
-import time
-from typing import Dict
+from typing import Optional, Dict
 from ultralytics import YOLO
 
 from src.core.config_manager import ConfigManager
@@ -66,12 +65,7 @@ class ComplianceMonitoringSystem:
         print("="*70)
         
         self.video_source = video_source
-        # Extract filename for clip_id logging
-        self.clip_id = os.path.basename(str(video_source))
         self.is_running = False
-        self._last_frame_save_time = 0.0
-        self.FRAME_SAVE_INTERVAL_SECONDS = 1.0
-        self.FRAME_SAVE_EVERY_N = 15
         
         # Initialize components
         self._initialize_system()
@@ -145,7 +139,7 @@ class ComplianceMonitoringSystem:
                 self.stats.increment_frame()
                 
                 # YOLO Inference (ONCE per frame, shared by all detectors)
-                yolo_results = self.yolo(frame, classes=[0, 7], verbose=False)
+                yolo_results = self.yolo(frame, classes=[0], verbose=False)
                 yolo_detections = yolo_results[0].boxes
                 
                 # Process through all detectors
@@ -184,15 +178,6 @@ class ComplianceMonitoringSystem:
                     2
                 )
                 
-                now = time.time()
-                if (
-                    frame_count % self.FRAME_SAVE_EVERY_N == 0
-                    or now - self._last_frame_save_time >= self.FRAME_SAVE_INTERVAL_SECONDS
-                ):
-                    os.makedirs("outputs", exist_ok=True)
-                    cv2.imwrite("outputs/latest_frame.jpg", frame)
-                    self._last_frame_save_time = now
-                
                 # Display frame
                 cv2.imshow("Factory Compliance Monitor", frame)
                 
@@ -227,28 +212,19 @@ class ComplianceMonitoringSystem:
         Args:
             event: Event dictionary from detector
         """
-        event["clip_id"] = self.clip_id
-        
-        if not event.get("zone"):
-            if event.get("behavior_class") == "walkway_violation":
-                event["zone"] = "Walkway"
-            elif event.get("behavior_class") == "unauthorized_intervention":
-                event["zone"] = "Machine-Zone"
-            elif event.get("behavior_class") == "forklift_overload":
-                event["zone"] = "Forklift-Zone"
-            else:
-                event["zone"] = "Unknown"
-        
-        is_valid, msg = EventFactory.validate_event(event)
-        if not is_valid:
-            print(f"⚠️  Event validation warning: {msg}")
-            return
-
+        # Update statistics
         self.stats.record_violation(
             event.get("severity", "LOW"),
             event.get("behavior_class", "unknown")
         )
         
+        # Validate event
+        is_valid, msg = EventFactory.validate_event(event)
+        if not is_valid:
+            print(f"⚠️  Event validation warning: {msg}")
+            return
+        
+        # Save to database
         success = DatabaseService.create_violation(event)
         
         # Publish event on event bus
@@ -271,6 +247,13 @@ class ComplianceMonitoringSystem:
     def _draw_unified_overlay(frame, visualization) -> object:
         """
         Draw unified visualization from all detectors.
+        
+        Args:
+            frame: Video frame
+            visualization: Aggregated VisualizationData
+        
+        Returns:
+            Frame with all visualizations drawn
         """
         # Draw zones
         for zone_points, color, thickness in visualization.zones:
@@ -298,10 +281,12 @@ class ComplianceMonitoringSystem:
         
         print("\n🔒 Phase 1: Closing resources...")
         
+        # Close video
         if self.cap:
             self.cap.release()
             print("  ✅ Video source closed")
         
+        # Close display window
         cv2.destroyAllWindows()
         print("  ✅ Display windows closed")
         
@@ -328,7 +313,10 @@ def main():
     args = parser.parse_args()
     
     try:
+        # Initialize system
         system = ComplianceMonitoringSystem(args.video)
+        
+        # Run monitoring
         system.run()
     
     except Exception as e:

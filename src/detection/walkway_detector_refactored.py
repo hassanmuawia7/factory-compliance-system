@@ -89,6 +89,8 @@ class WalkwayDetector(BaseDetector):
         
         # Process each detected person
         for box in yolo_detections:
+            if int(box.cls[0]) != 0:
+                continue
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             
             # Calculate center point at feet level
@@ -131,7 +133,11 @@ class WalkwayDetector(BaseDetector):
                 
                 # Create violation event
                 event = EventFactory.create_walkway_violation(
-                    description=self.rule.observable_indicator
+                    event_description=(
+                        self.rule.observable_indicator
+                        if self.rule else "Person detected in restricted walkway zone"
+                    ),
+                    zone="Walkway"
                 )
                 events.append(event)
         

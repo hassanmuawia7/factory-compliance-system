@@ -1,0 +1,13 @@
+id,event_id,timestamp,clip_id,zone,behavior_class,policy_rule_ref,event_description,severity,escalation_action
+1,EVT-20260620180443692678,2026-06-20T18:04:43.692733,test_clip.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,test walkway,HIGH,Real-time alert triggered + DB log
+2,EVT-20260620181126321788,2026-06-20T18:11:26.321848,clip.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,test,HIGH,Real-time alert triggered + DB log
+3,EVT-20260620181253660896,2026-06-20T18:12:53.660959,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+4,EVT-20260620181300736491,2026-06-20T18:13:00.736569,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+5,EVT-20260620181306044873,2026-06-20T18:13:06.044955,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+6,EVT-20260620181311239160,2026-06-20T18:13:11.239270,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+7,EVT-20260620181317517190,2026-06-20T18:13:17.517276,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+8,EVT-20260620181322541278,2026-06-20T18:13:22.541340,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+9,EVT-20260620181347974196,2026-06-20T18:13:47.974271,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+10,EVT-20260620181354360511,2026-06-20T18:13:54.360585,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+11,EVT-20260620181359487408,2026-06-20T18:13:59.487466,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log
+12,EVT-20260620181404658529,2026-06-20T18:14:04.658588,test.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,person outside green walkway boundaries,HIGH,Real-time alert triggered + DB log

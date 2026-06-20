@@ -5,13 +5,19 @@ A professional industrial AI monitoring platform for compliance tracking.
 """
 
 import os
-import sqlite3
+import sys
+import time
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
 from typing import Tuple
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+from src.database.database_service import DatabaseService
+from src.reports.report_generator import ReportGenerator
 
 # ==========================================
 # PAGE CONFIGURATION (Must be first)
@@ -170,18 +176,16 @@ st.markdown(f"""
 # DATA LOADING & HELPER FUNCTIONS
 # ==========================================
 DB_PATH = "outputs/compliance_logs.db"
+LATEST_FRAME_PATH = "outputs/latest_frame.jpg"
 
-@st.cache_data(ttl=3)
+@st.cache_data(ttl=10)
 def load_data():
-    """Load compliance violations from SQLite database."""
+    """Load compliance violations via DatabaseService."""
     if not os.path.exists(DB_PATH):
         return pd.DataFrame()
     
     try:
-        conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query("SELECT * FROM violations", conn)
-        conn.close()
-        
+        df = DatabaseService.get_all_violations()
         if not df.empty:
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             df = df.sort_values(by="timestamp", ascending=False)
@@ -283,6 +287,9 @@ def render_alert_center(data: pd.DataFrame):
         
         ts = row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
         
+        desc_text = row['event_description']
+        desc_preview = desc_text[:100] + ("..." if len(desc_text) > 100 else "")
+        
         st.markdown(f"""
         <div class="alert-{severity.lower()}">
             <div style="display: flex; justify-content: space-between; align-items: start;">
@@ -294,12 +301,91 @@ def render_alert_center(data: pd.DataFrame):
                         Event ID: <code>{row['event_id']}</code>
                     </div>
                     <div style="color: {COLORS['text']}; font-size: 0.9rem; margin-bottom: 8px;">
-                        {row['description'][:100]}...
+                        {desc_preview}
                     </div>
                     <div style="color: {COLORS['text_muted']}; font-size: 0.85rem;">
-                        📍 {ts} | Policy: {row['policy_rule_ref']}
+                        📍 {ts} | Zone: {row['zone']} | Policy: {row['policy_rule_ref']}
                     </div>
                 </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_alert_timeline(data: pd.DataFrame):
+    """Render chronological alert timeline feed, newest first."""
+    st.subheader("⏱️ Alert Timeline Stream")
+    
+    if data.empty:
+        st.info("No events to display in timeline.")
+        return
+    
+    timeline = data.sort_values(by="timestamp", ascending=False).head(20)
+    
+    for _, row in timeline.iterrows():
+        severity = row['severity']
+        color = SEVERITY_COLORS.get(severity, COLORS["accent"])
+        ts = row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        st.markdown(f"""
+        <div style="border-left: 3px solid {color}; padding: 10px 16px; margin-bottom: 8px;
+                    background-color: {COLORS['bg_secondary']}; border-radius: 0 8px 8px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: {COLORS['text_muted']}; font-size: 0.85rem;">{ts}</span>
+                <span style="color: {color}; font-weight: 700; font-size: 0.85rem;">{severity}</span>
+            </div>
+            <div style="color: {COLORS['text']}; font-weight: 600; margin-top: 4px;">
+                {row['behavior_class']}
+            </div>
+            <div style="color: {COLORS['text_muted']}; font-size: 0.85rem; margin-top: 2px;">
+                Zone: {row['zone']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_live_feed():
+    """Render lightweight live feed monitor from latest processed frame."""
+    st.subheader("📹 Live Feed Monitor")
+    
+    col_feed, col_status = st.columns([2, 1])
+    
+    with col_feed:
+        if os.path.exists(LATEST_FRAME_PATH):
+            st.image(LATEST_FRAME_PATH, caption="Latest Processed Frame", use_container_width=True)
+        else:
+            st.info("Waiting for pipeline to produce latest frame (outputs/latest_frame.jpg)...")
+    
+    with col_status:
+        frame_age = "N/A"
+        feed_status = "OFFLINE"
+        status_color = COLORS["critical"]
+        
+        if os.path.exists(LATEST_FRAME_PATH):
+            mtime = os.path.getmtime(LATEST_FRAME_PATH)
+            age_seconds = time.time() - mtime
+            frame_age = f"{int(age_seconds)}s ago"
+            
+            if age_seconds < 10:
+                feed_status = "LIVE"
+                status_color = COLORS["safe"]
+            elif age_seconds < 60:
+                feed_status = "STALE"
+                status_color = COLORS["medium"]
+            else:
+                feed_status = "OFFLINE"
+                status_color = COLORS["critical"]
+        
+        st.markdown(f"""
+        <div style="background-color: {COLORS['bg_secondary']}; border: 1px solid {COLORS['border']};
+                    border-radius: 8px; padding: 16px;">
+            <div style="font-weight: 600; margin-bottom: 12px;">Pipeline Status</div>
+            <div style="margin-bottom: 8px;">
+                <span style="color: {status_color}; font-weight: 700;">● {feed_status}</span>
+            </div>
+            <div style="color: {COLORS['text_muted']}; font-size: 0.9rem; margin-bottom: 8px;">
+                Last Frame: {frame_age}
+            </div>
+            <div style="color: {COLORS['text_muted']}; font-size: 0.9rem;">
+                DB: {'Connected' if os.path.exists(DB_PATH) else 'No Data'}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -464,7 +550,7 @@ def render_event_search(data: pd.DataFrame) -> pd.DataFrame:
         if search_type == "Event ID":
             filtered = data[data['event_id'].str.contains(search_query, case=False, na=False)]
         else:
-            filtered = data[data['description'].str.contains(search_query, case=False, na=False)]
+            filtered = data[data['event_description'].str.contains(search_query, case=False, na=False)]
         
         if not filtered.empty:
             with col3:
@@ -477,25 +563,16 @@ def render_event_search(data: pd.DataFrame) -> pd.DataFrame:
     return data
 
 def render_refresh_controls():
-    """Render auto-refresh controls."""
+    """Render manual refresh controls."""
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        refresh_interval = st.slider(
-            "🔄 Auto-Refresh Interval (seconds)",
-            min_value=3,
-            max_value=60,
-            value=10,
-            step=3,
-            help="Dashboard will automatically refresh at this interval"
-        )
+        st.caption("Data cache refreshes every 10 seconds. Click Refresh Now for an immediate reload.")
     
     with col2:
-        if st.button("🔃 Refresh Now"):
+        if st.button("Refresh Now"):
             st.cache_data.clear()
             st.rerun()
-    
-    return refresh_interval
 
 def render_violation_table(data: pd.DataFrame):
     """Render enhanced violation table."""
@@ -509,13 +586,13 @@ def render_violation_table(data: pd.DataFrame):
     display_df['timestamp'] = pd.to_datetime(display_df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
     
     display_columns = [
-        'timestamp', 'event_id', 'severity', 'behavior_class',
-        'description', 'policy_rule_ref', 'escalation_action'
+        'timestamp', 'event_id', 'clip_id', 'zone', 'severity', 'behavior_class',
+        'event_description', 'policy_rule_ref', 'escalation_action'
     ]
     
     display_df = display_df[display_columns]
     display_df.columns = [
-        'Timestamp', 'Event ID', 'Severity', 'Behavior',
+        'Timestamp', 'Event ID', 'Clip ID', 'Zone', 'Severity', 'Behavior',
         'Description', 'Policy', 'Action'
     ]
     
@@ -573,7 +650,7 @@ def render_export_section(data: pd.DataFrame):
         )
     
     with col2:
-        json_data = data.to_json(orient="records", indent=2).encode('utf-8')
+        json_data = data.to_json(orient="records", indent=2, date_format="iso").encode('utf-8')
         st.download_button(
             label="📦 Download JSON Export",
             data=json_data,
@@ -582,13 +659,12 @@ def render_export_section(data: pd.DataFrame):
         )
     
     with col3:
-        if st.button("📊 Generate Compliance Report"):
-            total = len(data)
-            critical = len(data[data['severity'] == 'CRITICAL'])
-            high = len(data[data['severity'] == 'HIGH'])
-            compliance = max(0, 100 - ((critical * 5) + (high * 2)))
-            
-            st.success(f"✅ Report Generated: {total} total events, {critical} critical, Compliance: {compliance:.1f}%")
+        if st.button("Generate Compliance Report"):
+            try:
+                summary_path = ReportGenerator.generate_summary_report()
+                st.success(f"Report generated: {summary_path}")
+            except Exception as exc:
+                st.error(f"Report generation failed: {exc}")
 
 def render_footer():
     """Render professional footer."""
@@ -636,16 +712,16 @@ df = load_data()
 # SECTION 1: HEADER
 render_header()
 
+# SECTION 9: REFRESH CONTROLS
+st.markdown("")
+render_refresh_controls()
+
 # SECTION 2: KPI CARDS
 render_kpi_cards(df)
 
-# SECTION 9: AUTO-REFRESH CONTROLS
-if not df.empty:
-    st.markdown("")
-    render_refresh_controls()
-
 # Empty state handling
 if df.empty:
+    render_live_feed()
     st.warning("⚠️ No compliance violations detected yet. System is actively monitoring...")
     st.info("The dashboard will populate with data once violations are detected by the detection engine.")
     render_footer()
@@ -689,8 +765,18 @@ if behavior_filter:
 
 st.markdown("")
 
+# SECTION 3A: LIVE FEED MONITOR
+render_live_feed()
+
+st.markdown("")
+
 # SECTION 3: ALERT CENTER
 render_alert_center(filtered_df)
+
+st.markdown("")
+
+# SECTION 3B: ALERT TIMELINE
+render_alert_timeline(filtered_df)
 
 st.markdown("")
 
@@ -710,7 +796,7 @@ render_system_health()
 st.markdown("")
 
 # SECTION 7: EXPORT & REPORTING
-render_export_section(df)
+render_export_section(filtered_df)
 
 st.markdown("")
 

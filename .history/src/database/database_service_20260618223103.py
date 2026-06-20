@@ -8,17 +8,10 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from sqlalchemy.orm import Session
-from datetime import datetime
-from src.database.db_manager import SessionLocal
+from datetime import datetime, timedelta
+from src.database.db_manager import SessionLocal, engine
 from src.database.models import ViolationRecord
 import pandas as pd
-
-
-VIOLATION_COLUMNS = [
-    'id', 'event_id', 'timestamp', 'clip_id', 'zone',
-    'behavior_class', 'policy_rule_ref', 'event_description',
-    'severity', 'escalation_action'
-]
 
 
 class DatabaseService:
@@ -28,50 +21,33 @@ class DatabaseService:
     def get_session() -> Session:
         """Get a new database session."""
         return SessionLocal()
-
-    @staticmethod
-    def _record_to_dict(record: ViolationRecord) -> dict:
-        """Convert ORM record to standardized dictionary."""
-        return {
-            'id': record.id,
-            'event_id': record.event_id,
-            'timestamp': record.timestamp,
-            'clip_id': record.clip_id,
-            'zone': record.zone,
-            'behavior_class': record.behavior_class,
-            'policy_rule_ref': record.policy_rule_ref,
-            'event_description': record.event_description,
-            'severity': record.severity,
-            'escalation_action': record.escalation_action,
-        }
-
-    @staticmethod
-    def _to_dataframe(records: list) -> pd.DataFrame:
-        """Convert records to DataFrame with consistent columns."""
-        if not records:
-            return pd.DataFrame(columns=VIOLATION_COLUMNS)
-        return pd.DataFrame([DatabaseService._record_to_dict(r) for r in records])
     
     @staticmethod
     def create_violation(event_dict: dict) -> bool:
+        """
+        Create and save a violation record.
+        
+        Args:
+            event_dict: Dictionary with event data
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
         session = DatabaseService.get_session()
         try:
-            escalation_action = event_dict.get("escalation_action")
-            if not escalation_action:
-                if event_dict.get("severity") in ["HIGH", "CRITICAL"]:
-                    escalation_action = "Real-time alert triggered + DB log"
-                else:
-                    escalation_action = "Logged to DB only"
+            # Determine escalation action based on severity
+            if event_dict.get("severity") in ["HIGH", "CRITICAL"]:
+                escalation_action = "Real-time alert triggered + DB log"
+            else:
+                escalation_action = "Logged to DB only"
             
             record = ViolationRecord(
                 event_id=event_dict["event_id"],
                 timestamp=event_dict["timestamp"],
-                clip_id=event_dict["clip_id"],
-                zone=event_dict["zone"],
                 behavior_class=event_dict["behavior_class"],
                 policy_rule_ref=event_dict["policy_rule_ref"],
-                event_description=event_dict["event_description"],
                 severity=event_dict["severity"],
+                description=event_dict["description"],
                 escalation_action=escalation_action
             )
             
@@ -89,41 +65,105 @@ class DatabaseService:
     
     @staticmethod
     def get_all_violations() -> pd.DataFrame:
-        """Retrieve all violations as pandas DataFrame."""
+        """
+        Retrieve all violations as pandas DataFrame.
+        
+        Returns:
+            pd.DataFrame: All violations
+        """
         session = DatabaseService.get_session()
         try:
             records = session.query(ViolationRecord).all()
-            return DatabaseService._to_dataframe(records)
+            data = [{
+                'id': r.id,
+                'event_id': r.event_id,
+                'timestamp': r.timestamp,
+                'behavior_class': r.behavior_class,
+                'policy_rule_ref': r.policy_rule_ref,
+                'severity': r.severity,
+                'description': r.description,
+                'escalation_action': r.escalation_action
+            } for r in records]
+            return pd.DataFrame(data)
         finally:
             session.close()
     
     @staticmethod
     def get_violations_by_severity(severity: str, limit: int = None) -> pd.DataFrame:
-        """Get violations filtered by severity."""
+        """
+        Get violations filtered by severity.
+        
+        Args:
+            severity: Severity level (CRITICAL, HIGH, MEDIUM, LOW)
+            limit: Maximum number of records to return
+            
+        Returns:
+            pd.DataFrame: Filtered violations
+        """
         session = DatabaseService.get_session()
         try:
             query = session.query(ViolationRecord).filter_by(severity=severity)
             if limit:
                 query = query.limit(limit)
-            return DatabaseService._to_dataframe(query.all())
+            
+            records = query.all()
+            data = [{
+                'id': r.id,
+                'event_id': r.event_id,
+                'timestamp': r.timestamp,
+                'behavior_class': r.behavior_class,
+                'policy_rule_ref': r.policy_rule_ref,
+                'severity': r.severity,
+                'description': r.description,
+                'escalation_action': r.escalation_action
+            } for r in records]
+            return pd.DataFrame(data)
         finally:
             session.close()
     
     @staticmethod
     def get_violations_by_behavior(behavior_class: str) -> pd.DataFrame:
-        """Get violations filtered by behavior class."""
+        """
+        Get violations filtered by behavior class.
+        
+        Args:
+            behavior_class: Behavior class name
+            
+        Returns:
+            pd.DataFrame: Filtered violations
+        """
         session = DatabaseService.get_session()
         try:
             records = session.query(ViolationRecord).filter_by(
                 behavior_class=behavior_class
             ).all()
-            return DatabaseService._to_dataframe(records)
+            
+            data = [{
+                'id': r.id,
+                'event_id': r.event_id,
+                'timestamp': r.timestamp,
+                'behavior_class': r.behavior_class,
+                'policy_rule_ref': r.policy_rule_ref,
+                'severity': r.severity,
+                'description': r.description,
+                'escalation_action': r.escalation_action
+            } for r in records]
+            return pd.DataFrame(data)
         finally:
             session.close()
     
     @staticmethod
     def get_violations_by_date_range(start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """Get violations within a date range."""
+        """
+        Get violations within a date range.
+        
+        Args:
+            start_date: Start datetime
+            end_date: End datetime
+            
+        Returns:
+            pd.DataFrame: Violations in date range
+        """
         session = DatabaseService.get_session()
         try:
             start_str = start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date)
@@ -133,13 +173,29 @@ class DatabaseService:
                 ViolationRecord.timestamp >= start_str,
                 ViolationRecord.timestamp <= end_str
             ).all()
-            return DatabaseService._to_dataframe(records)
+            
+            data = [{
+                'id': r.id,
+                'event_id': r.event_id,
+                'timestamp': r.timestamp,
+                'behavior_class': r.behavior_class,
+                'policy_rule_ref': r.policy_rule_ref,
+                'severity': r.severity,
+                'description': r.description,
+                'escalation_action': r.escalation_action
+            } for r in records]
+            return pd.DataFrame(data)
         finally:
             session.close()
     
     @staticmethod
     def get_statistics() -> dict:
-        """Get database statistics."""
+        """
+        Get database statistics.
+        
+        Returns:
+            dict: Statistics including counts by severity and behavior
+        """
         session = DatabaseService.get_session()
         try:
             total = session.query(ViolationRecord).count()
@@ -148,15 +204,12 @@ class DatabaseService:
             medium = session.query(ViolationRecord).filter_by(severity='MEDIUM').count()
             low = session.query(ViolationRecord).filter_by(severity='LOW').count()
             
+            # Calculate compliance score
             penalty = (critical * 5) + (high * 2) + (medium * 0.5)
             compliance_score = max(0, min(100, 100 - penalty))
             
-            behavior_rows = session.query(
-                ViolationRecord.behavior_class
-            ).all()
-            behavior_counts = {}
-            for (behavior,) in behavior_rows:
-                behavior_counts[behavior] = behavior_counts.get(behavior, 0) + 1
+            # Get behavior distribution
+            behavior_counts = session.query(ViolationRecord.behavior_class).count()
             
             return {
                 'total_violations': total,
@@ -165,7 +218,6 @@ class DatabaseService:
                 'medium_count': medium,
                 'low_count': low,
                 'compliance_score': compliance_score,
-                'behavior_counts': behavior_counts,
                 'database_connected': True
             }
         except Exception as e:
@@ -177,7 +229,6 @@ class DatabaseService:
                 'medium_count': 0,
                 'low_count': 0,
                 'compliance_score': 100,
-                'behavior_counts': {},
                 'database_connected': False
             }
         finally:
@@ -185,14 +236,20 @@ class DatabaseService:
     
     @staticmethod
     def delete_violation(event_id: str) -> bool:
-        """Delete a violation record by event_id."""
+        """
+        Delete a violation record by event_id.
+        
+        Args:
+            event_id: Event ID to delete
+            
+        Returns:
+            bool: True if successful
+        """
         session = DatabaseService.get_session()
         try:
-            deleted = session.query(ViolationRecord).filter_by(
-                event_id=event_id
-            ).delete()
+            session.query(ViolationRecord).filter_by(event_id=event_id).delete()
             session.commit()
-            return deleted > 0
+            return True
         except Exception as e:
             print(f"❌ Delete Error: {e}")
             session.rollback()
@@ -202,18 +259,38 @@ class DatabaseService:
     
     @staticmethod
     def get_recent_violations(limit: int = 10) -> pd.DataFrame:
-        """Get most recent violations."""
+        """
+        Get most recent violations.
+        
+        Args:
+            limit: Number of recent violations to return
+            
+        Returns:
+            pd.DataFrame: Recent violations
+        """
         session = DatabaseService.get_session()
         try:
             records = session.query(ViolationRecord).order_by(
                 ViolationRecord.timestamp.desc()
             ).limit(limit).all()
-            return DatabaseService._to_dataframe(records)
+            
+            data = [{
+                'id': r.id,
+                'event_id': r.event_id,
+                'timestamp': r.timestamp,
+                'behavior_class': r.behavior_class,
+                'policy_rule_ref': r.policy_rule_ref,
+                'severity': r.severity,
+                'description': r.description,
+                'escalation_action': r.escalation_action
+            } for r in records]
+            return pd.DataFrame(data)
         finally:
             session.close()
 
 
 if __name__ == "__main__":
+    # Test the service
     stats = DatabaseService.get_statistics()
     print("\n📊 Database Statistics:")
     print(f"  Total Violations: {stats['total_violations']}")

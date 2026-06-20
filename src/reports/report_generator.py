@@ -11,7 +11,6 @@ import pandas as pd
 import json
 from datetime import datetime
 from src.database.database_service import DatabaseService
-from src.severity.event_factory import SeverityClassifier
 
 
 class ReportGenerator:
@@ -138,9 +137,11 @@ RECENT CRITICAL & HIGH VIOLATIONS (Top 10)
                 report += f"""
 Event ID:       {row['event_id']}
 Timestamp:      {row['timestamp']}
+Clip ID:        {row['clip_id']}
+Zone:           {row['zone']}
 Severity:       {row['severity']}
 Behavior:       {row['behavior_class']}
-Description:    {row['description']}
+Description:    {row['event_description']}
 Policy:         {row['policy_rule_ref']}
 Action:         {row['escalation_action']}
 """

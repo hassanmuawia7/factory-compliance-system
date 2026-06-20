@@ -15,6 +15,7 @@ import numpy as np
 from src.detection.base_detector import BaseDetector, VisualizationData
 from src.detection.walkway_detector_refactored import WalkwayDetector
 from src.detection.unauthorized_intervention_detector_refactored import UnauthorizedInterventionDetector
+from src.detection.forklift_detector_refactored import ForkliftOverloadDetector
 from src.core.config_manager import ConfigManager
 
 
@@ -56,6 +57,13 @@ class DetectorManager:
             print(f"  ✅ {unauthorized.name} initialized")
         except Exception as e:
             print(f"  ❌ Failed to initialize UnauthorizedInterventionDetector: {e}")
+
+        try:
+            forklift = ForkliftOverloadDetector(self.config)
+            self.detectors["forklift"] = forklift
+            print(f"  ✅ {forklift.name} initialized")
+        except Exception as e:
+            print(f"  ❌ Failed to initialize ForkliftOverloadDetector: {e}")
         
         print(f"  Total detectors: {len(self.detectors)}\n")
     

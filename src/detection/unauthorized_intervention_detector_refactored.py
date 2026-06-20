@@ -1,6 +1,6 @@
 """
 Unauthorized Intervention Detector (Refactored)
-Detects people without proper safety equipment (blue vest) in machinery zones.
+Detects people without proper safety equipment (green vest) in machinery zones.
 
 Severity: CRITICAL
 Behavior: unauthorized_intervention
@@ -37,7 +37,7 @@ class UnauthorizedInterventionDetector(BaseDetector):
     
     Only:
     - Analyzes YOLO detections against machinery zones
-    - Checks for safety vest (blue color detection)
+    - Checks for safety vest (configurable HSV green color detection)
     - Generates CRITICAL violation events
     """
     
@@ -51,26 +51,25 @@ class UnauthorizedInterventionDetector(BaseDetector):
         super().__init__("Unauthorized Intervention Detector")
         self.config = config_manager
         
-        # Load machinery zones from config
         self.machinery_zones = {}
         zones_dict = self.config.get_machinery_zones()
         for zone_name, zone_points in zones_dict.items():
             self.machinery_zones[zone_name] = np.array(zone_points, dtype=np.int32)
         
-        # Get rule information
         self.rule = self.config.get_rule("unauthorized_intervention")
         
-        # Cooldown logic to prevent duplicate events
         self.last_violation_time = 0
         self.COOLDOWN_SECONDS = 5
         
-        # Visualization data from last detection
         self._current_viz = VisualizationData()
         
-        # Blue vest detection thresholds (HSV color space)
-        self.LOWER_BLUE = np.array([100, 50, 50])  # Lower bound for blue
-        self.UPPER_BLUE = np.array([130, 255, 255])  # Upper bound for blue
-        self.BLUE_DETECTION_THRESHOLD = 0.1  # Minimum 10% of ROI must be blue
+        # Configurable green vest HSV thresholds (OpenCV hue range 0-179)
+        self.LOWER_GREEN = np.array([35, 40, 40])
+        self.UPPER_GREEN = np.array([85, 255, 255])
+        self.VEST_DETECTION_THRESHOLD = 0.08
+        self.ROI_TOP_RATIO = 0.20
+        self.ROI_BOTTOM_RATIO = 0.65
+        self.ROI_WIDTH_MARGIN = 0.20
     
     def detect(
         self,
@@ -92,25 +91,29 @@ class UnauthorizedInterventionDetector(BaseDetector):
         
         current_time = time.time()
         violation_in_frame = False
+        violation_zone = ""
         
-        # Add machinery zones to visualization
         for zone_name, zone_poly in self.machinery_zones.items():
             self._current_viz.zones.append((
                 zone_poly,
-                (0, 0, 255),  # Red border for machinery zones
-                2  # Thickness
+                (0, 0, 255),
+                2
             ))
         
-        # Process each detected person
         for box in yolo_detections:
+            if int(box.cls[0]) != 0:
+                continue
             x1, y1, x2, y2 = map(int, box.xyxy[0])
+            if x1 > x2:
+                x1, x2 = x2, x1
+            if y1 > y2:
+                y1, y2 = y2, y1
             
-            # Calculate feet position (used for zone testing)
             feet_x = int((x1 + x2) / 2)
             feet_y = int(y2)
             
-            # Check if person is in any machinery zone
             in_danger_zone = False
+            active_zone = ""
             for zone_name, zone_poly in self.machinery_zones.items():
                 distance = cv2.pointPolygonTest(
                     zone_poly,
@@ -119,45 +122,78 @@ class UnauthorizedInterventionDetector(BaseDetector):
                 )
                 if distance >= 0:
                     in_danger_zone = True
+                    active_zone = zone_name
                     break
             
             if in_danger_zone:
-                # Person IS in machinery zone - check for safety vest
-                has_blue_vest = self._detect_blue_vest(frame, x1, y1, x2, y2)
+                has_green_vest = self._detect_green_vest(frame, x1, y1, x2, y2)
                 
-                if has_blue_vest:
-                    # ✅ Has proper safety equipment (OK)
-                    color = (0, 255, 0)  # Green
+                if has_green_vest:
+                    color = (0, 255, 0)
                     status = "AUTHORIZED"
                 else:
-                    # ❌ No safety equipment in danger zone (VIOLATION)
-                    color = (0, 0, 255)  # Red
+                    color = (0, 0, 255)
                     status = "UNAUTHORIZED"
                     violation_in_frame = True
+                    violation_zone = active_zone
             else:
-                # Person is OUTSIDE machinery zones (safe)
-                color = (255, 165, 0)  # Orange
+                color = (255, 165, 0)
                 status = "SAFE"
             
-            # Add to visualization
             self._current_viz.bounding_boxes.append((x1, y1, x2, y2, color))
             self._current_viz.circles.append((feet_x, feet_y, 5, color))
             self._current_viz.labels.append((x1, y1 - 10, status, color))
         
-        # Event creation (with cooldown)
         if violation_in_frame:
             if (current_time - self.last_violation_time) > self.COOLDOWN_SECONDS:
                 self.last_violation_time = current_time
                 
-                # Create CRITICAL violation event
                 event = EventFactory.create_unauthorized_intervention(
-                    description=self.rule.observable_indicator
+                    event_description=(
+                        self.rule.observable_indicator
+                        if self.rule else "Person without green safety vest detected near machinery"
+                    ),
+                    zone=violation_zone or "Machine-Zone"
                 )
                 events.append(event)
         
         return events
     
-    def _detect_blue_vest(
+    def _extract_vest_roi(
+        self,
+        frame: np.ndarray,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int
+    ) -> np.ndarray:
+        """Extract upper-torso ROI where safety vest is typically visible."""
+        if x1 > x2:
+            x1, x2 = x2, x1
+        if y1 > y2:
+            y1, y2 = y2, y1
+        
+        x1 = max(0, x1)
+        x2 = min(frame.shape[1], x2)
+        y1 = max(0, y1)
+        y2 = min(frame.shape[0], y2)
+        
+        box_h = y2 - y1
+        box_w = x2 - x1
+        if box_h <= 0 or box_w <= 0:
+            return np.array([])
+        
+        roi_y1 = y1 + int(box_h * self.ROI_TOP_RATIO)
+        roi_y2 = y1 + int(box_h * self.ROI_BOTTOM_RATIO)
+        roi_x1 = x1 + int(box_w * self.ROI_WIDTH_MARGIN)
+        roi_x2 = x2 - int(box_w * self.ROI_WIDTH_MARGIN)
+        
+        if roi_y2 <= roi_y1 or roi_x2 <= roi_x1:
+            return np.array([])
+        
+        return frame[roi_y1:roi_y2, roi_x1:roi_x2]
+    
+    def _detect_green_vest(
         self,
         frame: np.ndarray,
         x1: int,
@@ -166,41 +202,30 @@ class UnauthorizedInterventionDetector(BaseDetector):
         y2: int
     ) -> bool:
         """
-        Detect if person is wearing blue safety vest.
+        Detect if person is wearing a green safety vest.
         
-        Uses HSV color space for robust color detection.
-        
-        Args:
-            frame: Video frame
-            x1, y1, x2, y2: Bounding box coordinates
-        
-        Returns:
-            True if blue vest detected
+        Uses HSV color space with configurable thresholds on a torso ROI.
         """
-        # Extract ROI
-        x1 = max(0, x1)
-        x2 = min(frame.shape[1], x2)
-        y1 = max(0, y1)
-        y2 = min(frame.shape[0], y2)
+        if frame is None or frame.size == 0 or len(frame.shape) < 2:
+            return False
         
-        roi = frame[y1:y2, x1:x2]
+        roi = self._extract_vest_roi(frame, x1, y1, x2, y2)
         
         if roi.size == 0:
             return False
         
-        # Convert to HSV
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, self.LOWER_GREEN, self.UPPER_GREEN)
         
-        # Create blue mask
-        mask = cv2.inRange(hsv, self.LOWER_BLUE, self.UPPER_BLUE)
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         
-        # Calculate blue pixel percentage
-        blue_pixels = cv2.countNonZero(mask)
+        green_pixels = cv2.countNonZero(mask)
         total_pixels = mask.size
-        blue_ratio = blue_pixels / total_pixels if total_pixels > 0 else 0
+        green_ratio = green_pixels / total_pixels if total_pixels > 0 else 0
         
-        # Consider vest detected if threshold exceeded
-        return blue_ratio > self.BLUE_DETECTION_THRESHOLD
+        return green_ratio > self.VEST_DETECTION_THRESHOLD
     
     def get_visualization_data(self) -> VisualizationData:
         """Get visualization data from last detection."""
@@ -208,7 +233,6 @@ class UnauthorizedInterventionDetector(BaseDetector):
 
 
 if __name__ == "__main__":
-    # Test unauthorized intervention detector
     from src.core.config_manager import ConfigManager
     
     config = ConfigManager("outputs")

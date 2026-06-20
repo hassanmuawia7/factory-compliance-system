@@ -71,10 +71,13 @@ class BaseDetector(ABC):
                 {
                     "event_id": "EVT-20260120120530000000",
                     "timestamp": "2026-01-20T12:05:30",
+                    "clip_id": "test.mp4",
+                    "zone": "Walkway",
                     "behavior_class": "walkway_violation",
                     "severity": "HIGH",
                     "policy_rule_ref": "POLICY_WALKWAY_001",
-                    "description": "Person detected outside walkway zone"
+                    "event_description": "Person detected outside walkway zone",
+                    "escalation_action": "Real-time alert triggered + DB log"
                 }
             ]
         """

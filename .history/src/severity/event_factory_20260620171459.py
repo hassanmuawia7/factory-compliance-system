@@ -16,7 +16,6 @@ class BehaviorClass(Enum):
     """Enum of supported behavior classes."""
     WALKWAY_VIOLATION = "walkway_violation"
     UNAUTHORIZED_INTERVENTION = "unauthorized_intervention"
-    FORKLIFT_OVERLOAD = "forklift_overload"
     UNKNOWN = "unknown"
 
 
@@ -35,7 +34,6 @@ class EventFactory:
     BEHAVIOR_SEVERITY_MAP = {
         "walkway_violation": "HIGH",
         "unauthorized_intervention": "CRITICAL",
-        "forklift_overload": "CRITICAL",
         "unknown": "LOW",
     }
     
@@ -43,23 +41,15 @@ class EventFactory:
     BEHAVIOR_POLICY_MAP = {
         "walkway_violation": "POLICY_WALKWAY_001",
         "unauthorized_intervention": "POLICY_SAFETY_002",
-        "forklift_overload": "6.3.2",
         "unknown": "POLICY_DEFAULT",
     }
     
     @staticmethod
-    def _derive_escalation_action(severity: str) -> str:
-        """Derive escalation action from severity level."""
-        if severity in ("HIGH", "CRITICAL"):
-            return "Real-time alert triggered + DB log"
-        return "Logged to DB only"
-
-    @staticmethod
     def create_event(
         behavior_class: str,
-        event_description: str,
-        clip_id: str = "",
-        zone: str = "",
+        description: str,
+        clip_id: str,
+        zone: str,
         policy_override: Optional[str] = None,
         severity_override: Optional[str] = None
     ) -> Dict:
@@ -79,56 +69,30 @@ class EventFactory:
             "behavior_class": behavior_class,
             "policy_rule_ref": policy,
             "severity": severity,
-            "event_description": event_description,
-            "escalation_action": EventFactory._derive_escalation_action(severity),
+            "event_description": description,
         }
         
         return event
     
     @staticmethod
-    def create_walkway_violation(
-        event_description: str,
-        clip_id: str = "",
-        zone: str = "Walkway"
-    ) -> Dict:
+    def create_walkway_violation(description: str, clip_id: str, zone: str) -> Dict:
         """Create a walkway violation event."""
         return EventFactory.create_event(
             behavior_class="walkway_violation",
-            event_description=event_description or "Person detected in restricted walkway zone",
+            description=description or "Person detected in restricted walkway zone",
             clip_id=clip_id,
             zone=zone
         )
     
     @staticmethod
-    def create_unauthorized_intervention(
-        event_description: str,
-        clip_id: str = "",
-        zone: str = "Machine-Zone"
-    ) -> Dict:
+    def create_unauthorized_intervention(description: str, clip_id: str, zone: str) -> Dict:
         """Create an unauthorized intervention event."""
         return EventFactory.create_event(
             behavior_class="unauthorized_intervention",
-            event_description=event_description or "Person without green safety vest detected near machinery",
+            description=description or "Person without safety vest detected near machinery",
             clip_id=clip_id,
             zone=zone,
             severity_override="CRITICAL"
-        )
-
-    @staticmethod
-    def create_forklift_overload(
-        event_description: str,
-        clip_id: str = "",
-        zone: str = "Forklift-Zone",
-        policy_override: Optional[str] = None,
-    ) -> Dict:
-        """Create a forklift overload event."""
-        return EventFactory.create_event(
-            behavior_class="forklift_overload",
-            event_description=event_description or "Forklift carrying 3 or more blocks",
-            clip_id=clip_id,
-            zone=zone,
-            policy_override=policy_override,
-            severity_override="CRITICAL",
         )
     
     @staticmethod
@@ -163,19 +127,17 @@ class EventFactory:
         return EventFactory.BEHAVIOR_POLICY_MAP.get(behavior_class, "POLICY_DEFAULT")
     
     @staticmethod
+    @staticmethod
     def validate_event(event: Dict) -> tuple[bool, str]:
         """Validate an event dictionary against the assignment constraints."""
         required_fields = [
-            'event_id', 'timestamp', 'clip_id', 'zone',
-            'behavior_class', 'policy_rule_ref', 'event_description',
-            'severity', 'escalation_action'
+            'event_id', 'timestamp', 'clip_id', 'zone', 
+            'behavior_class', 'policy_rule_ref', 'severity', 'event_description'
         ]
         
         for field in required_fields:
             if field not in event:
                 return False, f"Missing required field: {field}"
-            if event[field] is None or str(event[field]).strip() == "":
-                return False, f"Empty required field: {field}"
         
         if event['severity'] not in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
             return False, f"Invalid severity: {event['severity']}"
@@ -228,27 +190,23 @@ class SeverityClassifier:
 
 
 if __name__ == "__main__":
+    # Test event creation
     event1 = EventFactory.create_walkway_violation(
-        "Person detected in walkway zone",
-        clip_id="test.mp4",
-        zone="Walkway"
+        "Person detected in walkway zone"
     )
     print("\n✅ Walkway Violation Event:")
     print(f"  Event ID: {event1['event_id']}")
     print(f"  Severity: {event1['severity']}")
     print(f"  Policy: {event1['policy_rule_ref']}")
-    print(f"  Escalation: {event1['escalation_action']}")
     
     event2 = EventFactory.create_unauthorized_intervention(
-        "Person without green safety vest near machinery",
-        clip_id="test.mp4",
-        zone="machine_1"
+        "Person without safety equipment near machinery"
     )
     print("\n✅ Unauthorized Intervention Event:")
     print(f"  Event ID: {event2['event_id']}")
     print(f"  Severity: {event2['severity']}")
     print(f"  Policy: {event2['policy_rule_ref']}")
-    print(f"  Escalation: {event2['escalation_action']}")
     
+    # Test validation
     is_valid, msg = EventFactory.validate_event(event1)
     print(f"\n✅ Validation: {msg}")
