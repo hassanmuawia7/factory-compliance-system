@@ -158,6 +158,16 @@ Policy references are mapped in `BEHAVIOR_POLICY_MAP`. Detectors may override th
 
 Compliance score impact (dashboard): `100 − (Critical×5 + High×2 + Medium×0.5)`.
 
+## Severity Mapping Rationale
+
+The severity classification is derived from the safety policy language.
+
+| Behavior | Severity | Reason |
+|-----------|----------|----------|
+| Walkway Violation | HIGH | Personnel operating outside designated safe walkways create elevated accident risk. |
+| Unauthorized Intervention | CRITICAL | Entering machine zones without authorization may cause immediate injury. |
+| Forklift Overload | CRITICAL | Overloaded forklifts can result in severe workplace accidents and equipment failure. |
+
 ---
 
 ## 7. Escalation Pipeline
@@ -438,6 +448,13 @@ factory-compliance-system/
 
 **Single-camera processing.** The main pipeline processes one video source at a time.
 
+### Performance
+
+The current implementation runs YOLOv8 on CPU in the evaluation environment.
+
+As a result, processing speed is approximately 6 FPS.
+
+For real-time deployment, GPU acceleration (CUDA) is recommended.
 ---
 
 ## 16. Future Improvements
@@ -453,3 +470,75 @@ Realistic extensions that build on the current architecture:
 
 **Last Updated:** June 2026  
 **Version:** 2.0.0
+
+## Screenshots
+
+### Policy Rules Extraction
+
+The system parses the factory compliance policy and converts safety requirements into structured machine-readable rules used by the detection pipeline.
+
+![Policy Rules](screenshots/01_policy_rules.png)
+
+---
+
+### Detection Pipeline
+
+Real-time monitoring of factory operations using YOLO-based object detection, calibrated safety zones, and compliance rule evaluation.
+
+![Detection Pipeline](screenshots/02_main_detection_pipeline.png)
+
+---
+
+### Dashboard Overview
+
+Interactive compliance dashboard displaying KPIs, violation statistics, severity distribution, and overall compliance score.
+
+![Dashboard Overview](screenshots/03_dashboard_overview.png)
+
+---
+
+### Live Feed Monitor
+
+Displays the latest processed frame with detected violations, calibrated zones, and system status information.
+
+![Live Feed Monitor](screenshots/04_live_feed_monitor.png)
+
+---
+
+### Alert Timeline Stream
+
+Chronological stream of compliance violations with severity levels, timestamps, and policy references for rapid incident review.
+
+![Alert Timeline](screenshots/05_alert_timeline.png)
+
+---
+
+### Historical Log & Export
+
+Comprehensive audit log of detected violations with filtering, analytics, and export capabilities for compliance reporting.
+
+![Historical Log & Export](screenshots/06_historical_log_export.png)
+
+---
+
+### Database Records
+
+SQLite database storing all compliance events, including timestamps, violation categories, severity levels, policy references, and escalation actions.
+
+![Database Records](screenshots/07_database_records.png)
+
+---
+
+### Generated Reports
+
+Automated compliance reporting module capable of generating CSV, JSON, and summary reports for auditing and management review.
+
+![Generated Reports](screenshots/08_generated_reports.png)
+
+---
+
+### Repository Structure (Optional)
+
+Project repository organization showing source code, data assets, documentation, and supporting resources.
+
+![Repository Structure](screenshots/09_repository_structure.png)
