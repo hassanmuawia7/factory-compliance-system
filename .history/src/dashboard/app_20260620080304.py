@@ -415,7 +415,7 @@ def render_filter_panel(data: pd.DataFrame) -> Tuple[list, list, tuple]:
         severity_filter = st.multiselect(
             "🔴 Severity Levels",
             ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
-            default=["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+            default=["CRITICAL", "HIGH", "MEDIUM", "LOW"]
             help="Filter violations by severity level"
         )
     

@@ -415,7 +415,7 @@ def render_filter_panel(data: pd.DataFrame) -> Tuple[list, list, tuple]:
         severity_filter = st.multiselect(
             "🔴 Severity Levels",
             ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
-            default=["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+            default=["CRITICAL", "HIGH", "MEDIUM"],
             help="Filter violations by severity level"
         )
     
@@ -642,7 +642,10 @@ render_kpi_cards(df)
 # SECTION 9: AUTO-REFRESH CONTROLS
 if not df.empty:
     st.markdown("")
-    render_refresh_controls()
+    refresh_interval = render_refresh_controls()
+    import time
+    st.cache_data.clear()
+    time.sleep(refresh_interval)
 
 # Empty state handling
 if df.empty:

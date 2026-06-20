@@ -415,7 +415,7 @@ def render_filter_panel(data: pd.DataFrame) -> Tuple[list, list, tuple]:
         severity_filter = st.multiselect(
             "🔴 Severity Levels",
             ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
-            default=["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+            default=["CRITICAL", "HIGH", "MEDIUM"],
             help="Filter violations by severity level"
         )
     
@@ -639,11 +639,6 @@ render_header()
 # SECTION 2: KPI CARDS
 render_kpi_cards(df)
 
-# SECTION 9: AUTO-REFRESH CONTROLS
-if not df.empty:
-    st.markdown("")
-    render_refresh_controls()
-
 # Empty state handling
 if df.empty:
     st.warning("⚠️ No compliance violations detected yet. System is actively monitoring...")
@@ -651,16 +646,7 @@ if df.empty:
     render_footer()
     st.stop()
 
-# SECTION 5: EVENT SEARCH
-st.markdown("")
-st.subheader("🔎 Event Search")
-df = render_event_search(df)
-
-if df.empty:
-    st.warning("No events matching your search criteria.")
-    st.stop()
-
-# SECTION 5B: FILTER PANEL
+# SECTION 5: FILTER PANEL
 st.markdown("")
 col_filter_title = st.columns(1)[0]
 col_filter_title.subheader("🔍 Advanced Filtering")
@@ -714,5 +700,5 @@ render_export_section(df)
 
 st.markdown("")
 
-# SECTION 10: FOOTER
+# SECTION 9: FOOTER
 render_footer()
