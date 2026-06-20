@@ -1,10 +1,21 @@
-
+# Python
 __pycache__/
-.history/
 *.pyc
+
+# Virtual Environment
 venv_fact/
 
-# # Output files 
-# outputs/policy_text.txt
-# outputs/rules.json
-# outputs/validated_rules.json
+# Editor
+.history/
+.vscode/
+
+# Runtime Outputs
+outputs/compliance_logs.db
+outputs/latest_frame.jpg
+outputs/analysis_frames/
+
+# Reports
+outputs/reports/
+
+# Models
+*.pt

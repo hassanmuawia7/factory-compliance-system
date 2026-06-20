@@ -1,3 +1,0 @@
-id,event_id,timestamp,behavior_class,policy_rule_ref,severity,description,escalation_action
-1,EVT-20260618212357,2026-06-18T21:23:57.930347,walkway_violation,3.3.2,HIGH,Detected: person outside green walkway boundaries,Real-time alert triggered + DB log
-2,EVT-20260618212402,2026-06-18T21:24:02.987120,walkway_violation,3.3.2,HIGH,Detected: person outside green walkway boundaries,Real-time alert triggered + DB log

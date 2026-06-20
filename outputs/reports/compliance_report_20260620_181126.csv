@@ -1,3 +1,0 @@
-id,event_id,timestamp,clip_id,zone,behavior_class,policy_rule_ref,event_description,severity,escalation_action
-1,EVT-20260620180443692678,2026-06-20T18:04:43.692733,test_clip.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,test walkway,HIGH,Real-time alert triggered + DB log
-2,EVT-20260620181126321788,2026-06-20T18:11:26.321848,clip.mp4,Walkway,walkway_violation,POLICY_WALKWAY_001,test,HIGH,Real-time alert triggered + DB log
